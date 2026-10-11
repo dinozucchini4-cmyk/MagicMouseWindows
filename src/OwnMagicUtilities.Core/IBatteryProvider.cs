@@ -63,10 +63,17 @@ public sealed class BatteryProviderRouter
                 result = BatteryReading.Error($"{provider.Name}: {ex.Message}");
             }
 
-            if (result.Availability == BatteryAvailability.Available &&
-                result.Percentage is >= 0 and <= 100)
+            if (result.Availability == BatteryAvailability.Available)
             {
-                return result;
+                if (result.Percentage is >= 0 and <= 100)
+                {
+                    return result;
+                }
+
+                // Never allow a provider to label a missing or out-of-range
+                // percentage as an available reading.
+                result = BatteryReading.Unsupported(
+                    $"{provider.Name}: returned an invalid or missing battery percentage.");
             }
 
             if (bestFailure is null || FailurePriority(result) > FailurePriority(bestFailure))

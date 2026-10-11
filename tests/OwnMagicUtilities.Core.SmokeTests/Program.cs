@@ -4,8 +4,10 @@ var tests = new (string Name, Action Run)[]
 {
     ("Bluetooth Mouse identity", TestBluetoothMouseIdentity),
     ("Bluetooth Trackpad identity", TestBluetoothTrackpadIdentity),
+    ("Bluetooth Keyboard identity", TestBluetoothKeyboardIdentity),
     ("USB Trackpad identity", TestUsbTrackpadIdentity),
     ("reject unrelated vendor", TestRejectUnrelatedVendor),
+    ("reject unsupported Mouse v3 PID", TestRejectUnsupportedMousePid),
     ("battery 80 percent report", TestBattery80Percent),
     ("long Windows report buffer", TestLongBatteryReport),
     ("charging flags", TestChargingFlags),
@@ -13,7 +15,8 @@ var tests = new (string Name, Action Run)[]
     ("reject wrong report ID", TestWrongReportId),
     ("reject invalid percentage", TestInvalidPercentage),
     ("battery metrics remain unknown", TestCapacityMetricsRemainUnknown),
-    ("provider router falls through to valid reading", TestProviderRouter)
+    ("provider router falls through to valid reading", TestProviderRouter),
+    ("router rejects invalid available result", TestRouterRejectsInvalidAvailableResult)
 };
 
 var failed = 0;
@@ -52,6 +55,14 @@ static void TestBluetoothTrackpadIdentity()
     Equal(AppleTransport.Bluetooth, id.Transport);
 }
 
+static void TestBluetoothKeyboardIdentity()
+{
+    const string path = @"BTHENUM\{00001124-0000-1000-8000-00805f9b34fb}_VID&0001004c_PID&0267";
+    Check(AppleDeviceIdentity.TryParse(path, out var id), "keyboard path was not recognized");
+    Equal(AppleDeviceKind.MagicKeyboard, id.Kind);
+    Equal(AppleTransport.Bluetooth, id.Transport);
+}
+
 static void TestUsbTrackpadIdentity()
 {
     const string hardwareId = @"HID\VID_05AC&PID_0265&COL01";
@@ -65,6 +76,12 @@ static void TestRejectUnrelatedVendor()
 {
     const string hardwareId = @"HID\VID_1234&PID_0269&COL01";
     Check(!AppleDeviceIdentity.TryParse(hardwareId, out _), "unrelated vendor was accepted");
+}
+
+static void TestRejectUnsupportedMousePid()
+{
+    const string path = @"BTHENUM\{00001124-0000-1000-8000-00805f9b34fb}_VID&0001004c_PID&0323";
+    Check(!AppleDeviceIdentity.TryParse(path, out _), "Magic Mouse v3 PID was incorrectly classified as the 2015 model");
 }
 
 static void TestBattery80Percent()
@@ -135,6 +152,19 @@ static void TestProviderRouter()
     var result = router.ReadAsync(device).AsTask().GetAwaiter().GetResult();
     Equal(BatteryAvailability.Available, result.Availability);
     Equal((byte)84, result.Percentage!.Value);
+}
+
+static void TestRouterRejectsInvalidAvailableResult()
+{
+    var device = new AppleDeviceIdentity(0x004C, 0x0267, AppleDeviceKind.MagicKeyboard, AppleTransport.Bluetooth, "test");
+    var router = new BatteryProviderRouter(
+    [
+        new StubProvider("bad-provider", true, BatteryReading.Available(101, false, false))
+    ]);
+
+    var result = router.ReadAsync(device).AsTask().GetAwaiter().GetResult();
+    Equal(BatteryAvailability.Unsupported, result.Availability);
+    Check(result.Percentage is null, "invalid percentage should not be exposed");
 }
 
 static void Check(bool condition, string message)

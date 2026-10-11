@@ -1,0 +1,40 @@
+name: Phase 4 Core Build
+
+on:
+  push:
+    branches: [phase4-core-layer]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-smoke-test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build Windows app
+        run: dotnet build src/MagicMouseApp/MagicMouseApp.csproj --configuration Release
+
+      - name: Run core smoke tests
+        run: dotnet run --project tests/OwnMagicUtilities.Core.SmokeTests/OwnMagicUtilities.Core.SmokeTests.csproj --configuration Release
+
+      - name: Publish self-contained Windows preview
+        run: dotnet publish src/MagicMouseApp/MagicMouseApp.csproj --configuration Release --output artifacts/publish
+
+      - name: Package Windows preview
+        shell: pwsh
+        run: Compress-Archive -Path artifacts/publish/* -DestinationPath artifacts/OwnMagicUtilities-Phase4-Preview.zip -Force
+
+      - name: Upload Windows preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: OwnMagicUtilities-Phase4-Preview
+          path: artifacts/OwnMagicUtilities-Phase4-Preview.zip
+          if-no-files-found: error

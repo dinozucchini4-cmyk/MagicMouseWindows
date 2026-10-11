@@ -24,3 +24,17 @@ jobs:
 
       - name: Run core smoke tests
         run: dotnet run --project tests/OwnMagicUtilities.Core.SmokeTests/OwnMagicUtilities.Core.SmokeTests.csproj --configuration Release
+
+      - name: Publish self-contained Windows preview
+        run: dotnet publish src/MagicMouseApp/MagicMouseApp.csproj --configuration Release --output artifacts/publish
+
+      - name: Package Windows preview
+        shell: pwsh
+        run: Compress-Archive -Path artifacts/publish/* -DestinationPath artifacts/OwnMagicUtilities-Phase4-Preview.zip -Force
+
+      - name: Upload Windows preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: OwnMagicUtilities-Phase4-Preview
+          path: artifacts/OwnMagicUtilities-Phase4-Preview.zip
+          if-no-files-found: error

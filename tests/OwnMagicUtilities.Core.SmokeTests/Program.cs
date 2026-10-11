@@ -10,7 +10,7 @@ var tests = new (string Name, Action Run)[]
     ("reject unsupported Mouse v3 PID", TestRejectUnsupportedMousePid),
     ("battery 80 percent report", TestBattery80Percent),
     ("long Windows report buffer", TestLongBatteryReport),
-    ("charging flags", TestChargingFlags),
+    ("charging state remains unknown", TestChargingStateRemainsUnknown),
     ("reject short battery report", TestShortReport),
     ("reject wrong report ID", TestWrongReportId),
     ("reject invalid percentage", TestInvalidPercentage),
@@ -90,8 +90,8 @@ static void TestBattery80Percent()
     Check(AppleBatteryReportParser.TryParse(report, out var reading), "valid report rejected");
     Equal(BatteryAvailability.Available, reading.Availability);
     Equal((byte)80, reading.Percentage!.Value);
-    Equal(false, reading.IsCharging!.Value);
-    Equal(false, reading.IsFullyCharged!.Value);
+    Check(reading.IsCharging is null, "charging state must not be inferred from unverified flag bits");
+    Check(reading.IsFullyCharged is null, "fully charged state must not be inferred from unverified flag bits");
 }
 
 static void TestLongBatteryReport()
@@ -101,17 +101,13 @@ static void TestLongBatteryReport()
     Equal((byte)80, reading.Percentage!.Value);
 }
 
-static void TestChargingFlags()
+static void TestChargingStateRemainsUnknown()
 {
-    byte[] charging = [0x90, 0x02, 0x2A];
-    Check(AppleBatteryReportParser.TryParse(charging, out var a), "charging report rejected");
-    Equal(true, a.IsCharging!.Value);
-    Equal(false, a.IsFullyCharged!.Value);
-
-    byte[] full = [0x90, 0x04, 0x64];
-    Check(AppleBatteryReportParser.TryParse(full, out var b), "full report rejected");
-    Equal(false, b.IsCharging!.Value);
-    Equal(true, b.IsFullyCharged!.Value);
+    byte[] report = [0x90, 0xFF, 0x2A];
+    Check(AppleBatteryReportParser.TryParse(report, out var reading), "valid report rejected");
+    Equal((byte)42, reading.Percentage!.Value);
+    Check(reading.IsCharging is null, "byte 1 has not been verified as charge flags");
+    Check(reading.IsFullyCharged is null, "byte 1 has not been verified as charge flags");
 }
 
 static void TestShortReport()

@@ -1,16 +1,15 @@
 namespace OwnMagicUtilities.Core;
 
 /// <summary>
-/// Parses the Apple HID battery input report format observed in the existing
-/// Own Magic Utilities reader: report ID 0x90 and percentage in byte 2.
-/// This parser performs no device I/O and writes no reports.
+/// Parses the battery input report format observed in the existing Own Magic
+/// Utilities reader: report ID 0x90 and percentage in byte 2.
+/// Charging state, health, and capacity are left unknown until a source has
+/// been verified for those fields.
 /// </summary>
 public static class AppleBatteryReportParser
 {
     public const byte ReportId = 0x90;
     public const int MinimumReportLength = 3;
-    private const byte ChargingFlag = 0x02;
-    private const byte FullyChargedFlag = 0x04;
 
     public static bool TryParse(ReadOnlySpan<byte> report, out BatteryReading reading)
     {
@@ -35,14 +34,13 @@ public static class AppleBatteryReportParser
             return false;
         }
 
-        var flags = report[1];
+        // Byte 1 semantics are not assumed. Only the report ID and percentage
+        // field are used; other battery metadata remains unknown.
         reading = BatteryReading.Available(
             percentage: report[2],
-            isCharging: (flags & ChargingFlag) != 0,
-            isFullyCharged: (flags & FullyChargedFlag) != 0);
+            isCharging: null,
+            isFullyCharged: null);
 
-        // The 0x90 report does not provide health or capacity values; those
-        // metrics intentionally remain null (shown as N/A by the UI).
         return true;
     }
 }
